@@ -36,6 +36,7 @@ import ConfigParser
 import StringIO
 import logging
 import sys
+import syslog
 
 # Config file path
 CONFIG_FILE = os.path.expanduser("/etc/uucp/rnews.cfg")
@@ -54,6 +55,7 @@ def read_config():
     if not os.path.exists(CONFIG_FILE):
         logging.error("Config file %s not found.", CONFIG_FILE)
         raise IOError("Config file {0} not found.".format(CONFIG_FILE))
+        sys.exit(1)
     config.read(CONFIG_FILE)
     return config.get("IMAP", "host"), config.get("IMAP", "username"), config.get("IMAP", "password")
 
@@ -92,6 +94,7 @@ def extract_messages(file_obj):
                 messages.append(message)
             except (IndexError, ValueError) as e:
                 logging.error("Invalid batch format: %s", str(e))
+		sys.exit(1)
 
     logging.info("Extracted %d messages", len(messages))
     return messages
@@ -125,6 +128,7 @@ def store_message(imap, folder, message):
     logging.info("Storing message in folder: %s", folder)
     msg_obj = email.message_from_string(message)
     date_header = msg_obj.get("Date", None)
+    message_id = msg_obj.get("Message-ID", "unknown")
 
     if date_header:
         parsed_date = email.utils.parsedate_tz(date_header)
@@ -139,6 +143,11 @@ def store_message(imap, folder, message):
         imap_date = time.strftime("%d-%b-%Y %H:%M:%S +0000", time.gmtime())
 
     imap.append(folder, None, imap_date, message)
+
+    # Log message storage in syslog
+    syslog.openlog(ident="rnews", logoption=syslog.LOG_PID, facility=syslog.LOG_MAIL)
+    syslog.syslog(syslog.LOG_INFO, "Stored message {0} in folder {1}".format(message_id, folder))
+    syslog.closelog()
 
 def process_batch_file():
     """Process a UUCP batch file from stdin and store messages in IMAP."""
@@ -162,9 +171,10 @@ def process_batch_file():
         logging.info("Processing completed successfully.")
     except Exception as e:
         logging.error("Error processing batch file: %s", str(e))
+        sys.exit(1)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Dummy rmail tool for UUCP batch processing")
+    parser = argparse.ArgumentParser(description="Dummy rnews tool for UUCP batch processing")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     args = parser.parse_args()
 
