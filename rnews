@@ -37,6 +37,7 @@ import StringIO
 import logging
 import sys
 import syslog
+import time
 
 # Config file path
 CONFIG_FILE = os.path.expanduser("/etc/uucp/rnews.cfg")
@@ -103,7 +104,6 @@ def get_newsgroup_folder(message):
     """Extract the Newsgroups header to determine the IMAP folder."""
     msg_obj = email.message_from_string(message)
     newsgroups = msg_obj.get("Newsgroups", "unknown").strip().replace(",", "_")
-    print(newsgroups)
     folder = u"Usenet/{0}".format(newsgroups)
 
     logging.debug("Message will be stored in folder: %s", folder)
@@ -134,18 +134,19 @@ def store_message(imap, folder, message):
         parsed_date = email.utils.parsedate_tz(date_header)
         if parsed_date:
             timestamp = email.utils.mktime_tz(parsed_date)
-            imap_date = time.strftime("%d-%b-%Y %H:%M:%S +0000", time.gmtime(timestamp))
+            imap_date = time.gmtime(timestamp)
         else:
             logging.warning("Invalid Date header, using current time")
-            imap_date = time.strftime("%d-%b-%Y %H:%M:%S +0000", time.gmtime())
+            imap_date = time.gmtime()
     else:
         logging.warning("No Date header found, using current time")
-        imap_date = time.strftime("%d-%b-%Y %H:%M:%S +0000", time.gmtime())
+        imap_date = time.gmtime()
 
+    imap_date = imaplib.Time2Internaldate(imap_date)
     imap.append(folder, None, imap_date, message)
 
     # Log message storage in syslog
-    syslog.openlog(ident="rnews", logoption=syslog.LOG_PID, facility=syslog.LOG_MAIL)
+    syslog.openlog("rnews", syslog.LOG_PID, syslog.LOG_MAIL)
     syslog.syslog(syslog.LOG_INFO, "Stored message {0} in folder {1}".format(message_id, folder))
     syslog.closelog()
 
