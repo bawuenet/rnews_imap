@@ -72,6 +72,9 @@ def open_batch_file():
     if first_line == "#! gunbatch":
         logging.info("Detected gzip-compressed batch file")
         return gzip.GzipFile(fileobj=StringIO.StringIO(remaining_data), mode="rb")
+    elif first_line == "#! bunbatch":
+        logging.info("Detected bzip2-compressed batch file")
+        return bz2.BZ2File(filename=StringIO.StringIO(remaining_data), mode="rb")
 
     logging.debug("Processing uncompressed batch file")
     return StringIO.StringIO(first_line + "\n" + remaining_data)
